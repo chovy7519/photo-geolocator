@@ -26,5 +26,9 @@ yarn-error.log*
 .env
 .env.local
 
+# Electron build output
+release/
+.electron-cache/
+
 # WorkBuddy
 .workbuddy/
