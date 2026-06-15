@@ -25,6 +25,33 @@ function createPhotoIcon(图片URL, selected, isManual) {
   });
 }
 
+/**
+ * 创建简单的 Leaflet popup 内容（只显示信息，不交互）
+ */
+function buildPopupContent(meta) {
+  const lat = meta.纬度?.toFixed(6) ?? '—';
+  const lng = meta.经度?.toFixed(6) ?? '—';
+  const time = meta.拍摄时间
+    ? new Date(meta.拍摄时间).toLocaleString('zh-CN')
+    : '—';
+  const alt = meta.海拔 != null ? `${meta.海拔} m` : '—';
+
+  return `
+    <div style="min-width:200px;max-width:280px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif;padding:4px;">
+      <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px;" title="${meta.文件名}">
+        ${meta.文件名}
+      </div>
+      <div style="font-size:12px;color:#666;line-height:1.8;">
+        <div>📍 ${lat}, ${lng}</div>
+        <div>🕐 ${time}</div>
+        <div>⛰ ${alt}</div>
+        ${meta.设备型号 ? `<div>📱 ${meta.设备厂商 ?? ''} ${meta.设备型号}</div>` : ''}
+        ${meta.手动定位 ? '<div style="color:#7c4dff;font-weight:500;margin-top:4px;">✎ 手动定位</div>' : ''}
+      </div>
+    </div>
+  `;
+}
+
 export default function MapView({
   照片列表,
   选中照片,
@@ -35,7 +62,6 @@ export default function MapView({
   定位模式,
   设置坐标,
   取消定位,
-  onPhotoSelect,
 }) {
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
@@ -200,13 +226,19 @@ export default function MapView({
 
       const marker = L.marker([纬度, 经度], { icon });
 
-      // marker 点击：通知 React 侧显示浮动卡片
+      // 绑定简单 popup（只显示信息）
+      marker.bindPopup(buildPopupContent(meta), {
+        className: 'photo-popup',
+        maxWidth: 300,
+        closeButton: true,
+        minWidth: 200,
+      });
+
+      // marker 点击：更新选中照片并打开 popup
       marker.on('click', () => {
         if (定位模式) return;
         标记点击(meta);
-        if (onPhotoSelect) {
-          onPhotoSelect(meta, 全局索引, popup图片URL);
-        }
+        marker.openPopup();
       });
 
       markers.push(marker);

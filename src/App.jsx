@@ -6,7 +6,7 @@ import StatusBar from './components/StatusBar';
 import SettingsDialog from './components/SettingsDialog';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import Lightbox from './components/Lightbox';
-import PhotoPopupCard from './components/PhotoPopupCard';
+import PhotoPreview from './components/PhotoPreview';
 import { batchExtractMeta } from './utils/exifReader';
 
 export default function App() {
@@ -22,7 +22,7 @@ export default function App() {
   const [灯箱打开, 设置灯箱打开] = useState(false);
   const [灯箱索引, 设置灯箱索引] = useState(0);
   const [定位中照片, 设置定位中照片] = useState(null);
-  const [popup照片, 设置popup照片] = useState(null); // { photo, index, url }
+  const [预览照片URL, 设置预览照片URL] = useState(null);
   const fileInputRef = useRef(null);
 
   // 保存天地图 Key
@@ -89,15 +89,28 @@ export default function App() {
     e.target.value = '';
   }, [处理文件导入]);
 
+  // 生成预览照片 URL（限制 20MB）
+  const 获取预览URL = useCallback((meta) => {
+    if (!meta?.file) return null;
+    if (meta.文件大小 > 20 * 1024 * 1024) return null;
+    try {
+      return URL.createObjectURL(meta.file);
+    } catch {
+      return null;
+    }
+  }, []);
+
   // 标记点击
   const 标记点击 = useCallback((meta) => {
     设置选中照片(meta);
-  }, []);
+    设置预览照片URL(获取预览URL(meta));
+  }, [获取预览URL]);
 
   // 列表项点击
   const 列表项点击 = useCallback((meta) => {
     设置选中照片(meta);
-  }, []);
+    设置预览照片URL(获取预览URL(meta));
+  }, [获取预览URL]);
 
   // 打开灯箱
   const 打开灯箱 = useCallback((索引) => {
@@ -120,6 +133,7 @@ export default function App() {
     设置选中照片(null);
     设置灯箱打开(false);
     设置定位中照片(null);
+    设置预览照片URL(null);
   }, []);
 
   // 手动定位：进入定位模式
@@ -195,21 +209,38 @@ export default function App() {
         取消定位={取消定位}
       />
 
-      {/* 主体区域 */}
+      {/* 主体区域 - GeoSetter 式三栏布局 */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* 侧栏 - 照片列表 */}
-        <PhotoList
-          展开={侧栏展开}
-          有GPS列表={有GPS列表}
-          无GPS列表={无GPS列表}
-          选中照片={选中照片}
-          点击照片={列表项点击}
-          总数={照片列表.length}
-          全部照片列表={照片列表}
-          打开灯箱={打开灯箱}
-          手动定位={开始手动定位}
-          定位中照片={定位中照片}
-        />
+        {/* 左侧栏 - 照片列表 + 图像预览 */}
+        <div className={`flex flex-col h-full bg-white border-r border-gray-200 transition-all duration-300 ${侧栏展开 ? 'w-[420px]' : 'w-0 opacity-0 overflow-hidden'}`}>
+          {/* 上方：照片列表 */}
+          <div className="flex-1 overflow-hidden">
+            <PhotoList
+              展开={true}
+              有GPS列表={有GPS列表}
+              无GPS列表={无GPS列表}
+              选中照片={选中照片}
+              点击照片={列表项点击}
+              总数={照片列表.length}
+              全部照片列表={照片列表}
+              打开灯箱={打开灯箱}
+              手动定位={开始手动定位}
+              定位中照片={定位中照片}
+            />
+          </div>
+
+          {/* 下方：图像预览 */}
+          <div className="h-[300px] border-t border-gray-200 flex-shrink-0">
+            <PhotoPreview
+              photo={选中照片}
+              photoUrl={预览照片URL}
+              onOpenLightbox={() => {
+                const idx = 照片列表.findIndex((p) => p.文件名 === 选中照片?.文件名);
+                if (idx >= 0) 打开灯箱(idx);
+              }}
+            />
+          </div>
+        </div>
 
         {/* 地图区域 */}
         <div className="flex-1 relative">
@@ -254,19 +285,7 @@ export default function App() {
             定位模式={定位中照片}
             设置坐标={设置手动坐标}
             取消定位={取消定位}
-            onPhotoSelect={显示Popup卡片}
           />
-
-          {/* 浮动照片卡片 */}
-          {popup照片 && (
-            <PhotoPopupCard
-              photo={popup照片.photo}
-              photoIndex={popup照片.index}
-              photoUrl={popup照片.url}
-              onClose={关闭Popup卡片}
-              onZoom={打开灯箱}
-            />
-          )}
         </div>
       </div>
 
