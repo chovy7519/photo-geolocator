@@ -137,38 +137,42 @@ export default function MapView({
   const locateClickHandlerRef = useRef(null);
   const 照片元数据Ref = useRef({});
 
-  // 通过委托监听 document 上的 popup 点击（放大图标 + 图片 → 打开 Lightbox）
+  // 在 popup 打开后，直接给 popup 内的 DOM 元素绑定点击事件
   useEffect(() => {
-    const handlePopupImageClick = (e) => {
-      // 优先：放大图标点击
-      const zoomIcon = e.target.closest('[data-photo-action="zoom"]');
+    const map = mapRef.current;
+    if (!map) return;
+
+    // 查找 popup 内指定元素并打开 Lightbox
+    const openLightboxForFilename = (filename) => {
+      if (!filename) return;
+      const 索引 = 全部照片列表.findIndex((p) => p.文件名 === filename);
+      if (索引 >= 0) 打开灯箱(索引);
+    };
+
+    // popup 打开时绑定事件
+    const handlePopupOpen = (e) => {
+      const popupNode = e.popup?.getElement();
+      if (!popupNode) return;
+
+      // 绑定放大图标
+      const zoomIcon = popupNode.querySelector('.popup-photo-icon');
       if (zoomIcon) {
-        const filename = zoomIcon.getAttribute('data-photo-filename');
-        if (filename) {
-          const 索引 = 全部照片列表.findIndex((p) => p.文件名 === filename);
-          if (索引 >= 0) {
-            e.stopPropagation();
-            打开灯箱(索引);
-            return;
-          }
-        }
+        zoomIcon.addEventListener('click', () => {
+          openLightboxForFilename(zoomIcon.getAttribute('data-photo-filename'));
+        });
       }
 
-      // 兜底：图片本身点击
-      const img = e.target.closest('.lightbox-popup-trigger');
-      if (!img) return;
-
-      const filename = img.getAttribute('data-photo-filename');
-      if (!filename) return;
-
-      const 索引 = 全部照片列表.findIndex((p) => p.文件名 === filename);
-      if (索引 >= 0) {
-        打开灯箱(索引);
+      // 绑定图片本身
+      const photoImg = popupNode.querySelector('.lightbox-popup-trigger');
+      if (photoImg) {
+        photoImg.addEventListener('click', () => {
+          openLightboxForFilename(photoImg.getAttribute('data-photo-filename'));
+        });
       }
     };
 
-    document.addEventListener('click', handlePopupImageClick);
-    return () => document.removeEventListener('click', handlePopupImageClick);
+    map.on('popupopen', handlePopupOpen);
+    return () => map.off('popupopen', handlePopupOpen);
   }, [全部照片列表, 打开灯箱]);
 
   // 通过委托监听 document 上的 popup 拖拽（下载图标 + 图片 → 导出到文件夹）
