@@ -35,14 +35,12 @@ function buildPopupContent(meta, 图片URL, 索引) {
          <img src="${图片URL}" alt="" data-photo-filename="${安全文件名}" data-photo-index="${索引}"
               class="lightbox-popup-trigger popup-photo-img"
               draggable="true"
-              onclick="window.__gl_openLightbox && window.__gl_openLightbox(this.getAttribute('data-photo-index'))"
               title="点击放大 · 拖拽到文件夹即可保存"
               loading="lazy" />
          <div class="popup-photo-overlay">
            <div class="popup-photo-icon"
                 data-photo-action="zoom"
                 data-photo-index="${索引}"
-                onclick="window.__gl_openLightbox && window.__gl_openLightbox(this.getAttribute('data-photo-index'))"
                 title="点击放大预览">
              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                <circle cx="11" cy="11" r="8"/>
@@ -138,17 +136,6 @@ export default function MapView({
   const blobUrlsRef = useRef({});
   const locateClickHandlerRef = useRef(null);
   const 照片元数据Ref = useRef({});
-
-  // 将 Lightbox 打开函数挂到 window 上，供 popup 内 onclick 直接调用
-  useEffect(() => {
-    window.__gl_openLightbox = (idx) => {
-      const n = parseInt(idx, 10);
-      if (!isNaN(n) && n >= 0 && n < 全部照片列表.length) {
-        打开灯箱(n);
-      }
-    };
-    return () => { delete window.__gl_openLightbox; };
-  }, [全部照片列表, 打开灯箱]);
 
   // 通过委托监听 document 上的 popup 拖拽（下载图标 + 图片 → 导出到文件夹）
   useEffect(() => {
@@ -319,6 +306,38 @@ export default function MapView({
         maxWidth: 340,
         closeButton: true,
         minWidth: 280,
+      });
+
+      // popup 打开时，用 Leaflet 原生 L.DomEvent.on 绑定点击事件
+      //（Leaflet popup 内部会 disableClickPropagation，addEventListener / inline onclick 会被静默拦截，只有 L.DomEvent.on 能穿透）
+      marker.on('popupopen', (e) => {
+        const container = e.popup.getElement();
+        if (!container) return;
+
+        const openLightboxForIndex = (idxStr) => {
+          const idx = parseInt(idxStr, 10);
+          if (!isNaN(idx) && idx >= 0 && idx < 全部照片列表.length) {
+            打开灯箱(idx);
+          }
+        };
+
+        // 放大图标
+        const zoomBtn = container.querySelector('.popup-photo-icon');
+        if (zoomBtn) {
+          L.DomEvent.on(zoomBtn, 'click', (ev) => {
+            L.DomEvent.stopPropagation(ev);
+            openLightboxForIndex(zoomBtn.getAttribute('data-photo-index'));
+          });
+        }
+
+        // 图片本身
+        const photoImg = container.querySelector('.popup-photo-img');
+        if (photoImg) {
+          L.DomEvent.on(photoImg, 'click', (ev) => {
+            L.DomEvent.stopPropagation(ev);
+            openLightboxForIndex(photoImg.getAttribute('data-photo-index'));
+          });
+        }
       });
 
       marker.on('click', () => {
