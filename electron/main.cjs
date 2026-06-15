@@ -1,5 +1,6 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, webUtils } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let mainWindow;
 
@@ -64,9 +65,6 @@ ipcMain.handle('select-folder', async () => {
 
 // IPC: 读取文件夹内图片文件
 ipcMain.handle('read-folder-images', async (event, folderPath) => {
-  const fs = require('fs');
-  const path = require('path');
-
   const allowedExts = ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.heic', '.heif'];
 
   try {
@@ -87,5 +85,33 @@ ipcMain.handle('read-folder-images', async (event, folderPath) => {
     return files;
   } catch (err) {
     return { error: err.message };
+  }
+});
+
+// IPC: 获取拖拽文件的真实路径（Electron 环境专用）
+// 浏览器使用 webUtils.getPathForFile(file) 拿到 file.path
+ipcMain.handle('get-file-path', async (event, file) => {
+  try {
+    if (file && webUtils && typeof webUtils.getPathForFile === 'function') {
+      return webUtils.getPathForFile(file);
+    }
+    return null;
+  } catch (err) {
+    return null;
+  }
+});
+
+// IPC: 系统级文件拖拽 —— 把真实文件路径直接交给 OS 处理
+// 当用户把 popup 照片拖出窗口到资源管理器/Finder 时触发
+ipcMain.on('ondragstart', (event, filePath) => {
+  try {
+    if (filePath && fs.existsSync(filePath)) {
+      event.sender.startDrag({
+        file: filePath,
+        icon: path.join(__dirname, '../assets/drag-icon.png'),
+      });
+    }
+  } catch (err) {
+    console.error('拖拽失败:', err);
   }
 });

@@ -16,6 +16,9 @@ function escapeAttr(str) {
 
 /**
  * Leaflet 弹出窗口工厂
+ * - 照片可点击打开 Lightbox（事件委托）
+ * - 照片可拖拽到文件夹（HTML5 native drag）
+ * - 悬停时显示双提示图标（放大 + 下载）
  */
 function buildPopupContent(meta, 图片URL) {
   const lat = meta.纬度?.toFixed(6) ?? '—';
@@ -28,13 +31,39 @@ function buildPopupContent(meta, 图片URL) {
   const isManual = meta.手动定位;
 
   const 图片HTML = 图片URL
-    ? `<div style="width:100%;max-height:220px;overflow:hidden;background:#f0f0f0;display:flex;align-items:center;justify-content:center;">
-          <img src="${图片URL}" alt="" data-photo-filename="${安全文件名}"
-               class="lightbox-popup-trigger"
-               style="width:100%;object-fit:cover;cursor:pointer;"
-               loading="lazy" />
+    ? `<div class="popup-photo-wrap">
+         <img src="${图片URL}" alt="" data-photo-filename="${安全文件名}"
+              class="lightbox-popup-trigger popup-photo-img"
+              draggable="true"
+              title="点击放大 · 拖拽到文件夹即可保存"
+              loading="lazy" />
+         <div class="popup-photo-overlay">
+           <div class="popup-photo-icon" title="点击放大预览">
+             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <circle cx="11" cy="11" r="8"/>
+               <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+               <line x1="11" y1="8" x2="11" y2="14"/>
+               <line x1="8" y1="11" x2="14" y2="11"/>
+             </svg>
+           </div>
+           <div class="popup-photo-drag" title="拖拽到文件夹保存">
+             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+               <polyline points="7 10 12 15 17 10"/>
+               <line x1="12" y1="15" x2="12" y2="3"/>
+             </svg>
+           </div>
+         </div>
+         <div class="popup-photo-tip">点击放大 · 拖到文件夹保存</div>
        </div>`
-    : '';
+    : `<div class="popup-photo-empty">
+         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5">
+           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+           <circle cx="8.5" cy="8.5" r="1.5"/>
+           <polyline points="21 15 16 10 5 21"/>
+         </svg>
+         <span>无缩略图（>20MB）</span>
+       </div>`;
 
   return `
     <div style="min-width:260px;max-width:320px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif;">
@@ -99,8 +128,9 @@ export default function MapView({
   const selectedMarkerRef = useRef(null);
   const blobUrlsRef = useRef({});
   const locateClickHandlerRef = useRef(null);
+  const 照片元数据Ref = useRef({});
 
-  // 通过委托监听 document 上的 popup 图片点击
+  // 通过委托监听 document 上的 popup 图片点击（打开 Lightbox）
   useEffect(() => {
     const handlePopupImageClick = (e) => {
       const img = e.target.closest('.lightbox-popup-trigger');
@@ -118,6 +148,42 @@ export default function MapView({
     document.addEventListener('click', handlePopupImageClick);
     return () => document.removeEventListener('click', handlePopupImageClick);
   }, [全部照片列表, 打开灯箱]);
+
+  // 通过委托监听 document 上的 popup 图片拖拽（下载到文件夹）
+  useEffect(() => {
+    const handlePopupImageDragStart = (e) => {
+      const img = e.target.closest('.popup-photo-img');
+      if (!img) return;
+
+      const filename = img.getAttribute('data-photo-filename');
+      if (!filename) return;
+
+      const meta = 照片元数据Ref.current[filename];
+      if (!meta) return;
+
+      // 优先：Electron 环境 → 走原生 startDrag（拖出窗口复制真实文件）
+      if (window.electronAPI?.startDrag && meta.filePath) {
+        e.preventDefault();
+        window.electronAPI.startDrag(meta.filePath);
+        return;
+      }
+
+      // 兜底：浏览器环境 → 设置 DownloadURL 数据（拖到桌面或浏览器会触发下载）
+      try {
+        const src = img.getAttribute('src');
+        if (src) {
+          e.dataTransfer.effectAllowed = 'copy';
+          e.dataTransfer.setData('DownloadURL', `image/jpeg:${filename}:${src}`);
+          e.dataTransfer.setData('text/uri-list', src);
+        }
+      } catch (err) {
+        console.warn('拖拽初始化失败:', err);
+      }
+    };
+
+    document.addEventListener('dragstart', handlePopupImageDragStart);
+    return () => document.removeEventListener('dragstart', handlePopupImageDragStart);
+  }, []);
 
   // 初始化地图
   useEffect(() => {
@@ -147,7 +213,9 @@ export default function MapView({
     if (!map || !天地图Key) return;
 
     Object.values(layersRef.current).forEach((layer) => {
-      if (layer) map.removeLayer(layer);
+      if (layer) {
+        map.removeLayer(layer);
+      }
     });
     layersRef.current = {};
 
@@ -178,6 +246,7 @@ export default function MapView({
       map.removeLayer(clusterGroupRef.current);
     }
     markersRef.current = {};
+    照片元数据Ref.current = {};
 
     Object.values(blobUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
     blobUrlsRef.current = {};
@@ -207,6 +276,9 @@ export default function MapView({
     照片列表.forEach((meta) => {
       const { 纬度, 经度 } = meta;
       if (纬度 == null || 经度 == null) return;
+
+      // 记录元数据（供拖拽使用）
+      照片元数据Ref.current[meta.文件名] = meta;
 
       // 生成缩略图 blob URL（限制 5M，仅用于 marker 图标）
       let 缩略图URL = null;
@@ -239,6 +311,7 @@ export default function MapView({
         className: 'photo-popup',
         maxWidth: 340,
         closeButton: true,
+        minWidth: 280,
       });
 
       marker.on('click', () => {
