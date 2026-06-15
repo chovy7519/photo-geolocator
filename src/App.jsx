@@ -177,9 +177,11 @@ export default function App() {
     e.preventDefault();
     const startX = e.clientX;
     const startW = 侧栏宽度;
+    // 最大宽度：窗口宽度的 75%，且至少保留 320px 给地图
+    const maxW = Math.max(800, window.innerWidth * 0.75);
 
     const onMove = (ev) => {
-      const newW = Math.max(280, Math.min(800, startW + (ev.clientX - startX)));
+      const newW = Math.max(280, Math.min(maxW, startW + (ev.clientX - startX)));
       设置侧栏宽度(newW);
     };
     const onUp = () => {

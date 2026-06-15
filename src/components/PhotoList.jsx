@@ -42,12 +42,9 @@ export default function PhotoList({
   return (
     <Box
       sx={{
-        width: 展开 ? 360 : 0,
-        minWidth: 展开 ? 360 : 0,
+        width: '100%',
+        minWidth: 0,
         overflow: 'hidden',
-        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        borderRight: '1px solid',
-        borderColor: 'divider',
         display: 'flex',
         flexDirection: 'column',
         bgcolor: '#fff',
