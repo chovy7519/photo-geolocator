@@ -23,6 +23,8 @@ export default function App() {
   const [灯箱索引, 设置灯箱索引] = useState(0);
   const [定位中照片, 设置定位中照片] = useState(null);
   const [预览照片URL, 设置预览照片URL] = useState(null);
+  const [侧栏宽度, 设置侧栏宽度] = useState(420);
+  const [预览高度, 设置预览高度] = useState(280);
   const fileInputRef = useRef(null);
 
   // 保存天地图 Key
@@ -170,6 +172,44 @@ export default function App() {
     设置定位中照片(null);
   }, []);
 
+  // 侧栏宽度拖拽
+  const 开始拖侧栏宽度 = useCallback((e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = 侧栏宽度;
+
+    const onMove = (ev) => {
+      const newW = Math.max(280, Math.min(800, startW + (ev.clientX - startX)));
+      设置侧栏宽度(newW);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [侧栏宽度]);
+
+  // 预览高度拖拽
+  const 开始拖预览高度 = useCallback((e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = 预览高度;
+
+    const onMove = (ev) => {
+      const newH = Math.max(150, Math.min(600, startH + (startY - ev.clientY)));
+      设置预览高度(newH);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [预览高度]);
+
   const 有GPS列表 = useMemo(() => 照片列表.filter((p) => p.有GPS), [照片列表]);
   const 无GPS列表 = useMemo(() => 照片列表.filter((p) => !p.有GPS), [照片列表]);
 
@@ -209,12 +249,18 @@ export default function App() {
         取消定位={取消定位}
       />
 
-      {/* 主体区域 - GeoSetter 式三栏布局 */}
+      {/* 主体区域 - GeoSetter 式三栏布局（可拖拽调节） */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* 左侧栏 - 照片列表 + 图像预览 */}
-        <div className={`flex flex-col h-full bg-white border-r border-gray-200 transition-all duration-300 ${侧栏展开 ? 'w-[420px]' : 'w-0 opacity-0 overflow-hidden'}`}>
+        <div
+          className="flex flex-col h-full bg-white border-r border-gray-200 flex-shrink-0"
+          style={{ width: 侧栏展开 ? 侧栏宽度 : 0,
+                   opacity: 侧栏展开 ? 1 : 0,
+                   overflow: 侧栏展开 ? 'hidden' : 'hidden',
+                   transition: 侧栏展开 ? 'none' : 'opacity 0.3s, width 0.3s' }}
+        >
           {/* 上方：照片列表 */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden" style={{ minHeight: 150 }}>
             <PhotoList
               展开={true}
               有GPS列表={有GPS列表}
@@ -229,8 +275,16 @@ export default function App() {
             />
           </div>
 
+          {/* 水平拖拽条：调节预览高度 */}
+          <div
+            className="resize-handle resize-handle-h"
+            onMouseDown={开始拖预览高度}
+          >
+            <div className="resize-handle-bar" />
+          </div>
+
           {/* 下方：图像预览 */}
-          <div className="h-[300px] border-t border-gray-200 flex-shrink-0">
+          <div className="border-t border-gray-200 flex-shrink-0" style={{ height: 预览高度 }}>
             <PhotoPreview
               photo={选中照片}
               photoUrl={预览照片URL}
@@ -241,6 +295,16 @@ export default function App() {
             />
           </div>
         </div>
+
+        {/* 垂直拖拽条：调节侧栏宽度 */}
+        {侧栏展开 && (
+          <div
+            className="resize-handle resize-handle-v"
+            onMouseDown={开始拖侧栏宽度}
+          >
+            <div className="resize-handle-bar" />
+          </div>
+        )}
 
         {/* 地图区域 */}
         <div className="flex-1 relative">

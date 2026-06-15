@@ -410,6 +410,55 @@ html, body, #root {
   white-space: nowrap;
 }
 
+/* ===== 可拖拽分割条 ===== */
+.resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: background 0.15s;
+  z-index: 100;
+}
+
+.resize-handle:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.resize-handle:active {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.resize-handle-v {
+  width: 5px;
+  cursor: col-resize;
+  flex-shrink: 0;
+}
+
+.resize-handle-v .resize-handle-bar {
+  width: 1px;
+  height: 40px;
+  background: #cbd5e1;
+  border-radius: 1px;
+}
+
+.resize-handle:active .resize-handle-bar,
+.resize-handle:hover .resize-handle-bar {
+  background: #3b82f6;
+}
+
+.resize-handle-h {
+  height: 5px;
+  cursor: row-resize;
+  flex-shrink: 0;
+}
+
+.resize-handle-h .resize-handle-bar {
+  width: 40px;
+  height: 1px;
+  background: #cbd5e1;
+  border-radius: 1px;
+}
+
 /* ===== 拖拽区域 ===== */
 .drop-zone {
   border: 2px dashed #90caf9;

@@ -26,27 +26,57 @@ function createPhotoIcon(图片URL, selected, isManual) {
 }
 
 /**
- * 创建简单的 Leaflet popup 内容（只显示信息，不交互）
+ * 对文件名做 HTML 属性转义
  */
-function buildPopupContent(meta) {
+function escapeAttr(str) {
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * 创建 Leaflet popup 内容（带照片缩略图 + 信息）
+ */
+function buildPopupContent(meta, 图片URL) {
   const lat = meta.纬度?.toFixed(6) ?? '—';
   const lng = meta.经度?.toFixed(6) ?? '—';
   const time = meta.拍摄时间
     ? new Date(meta.拍摄时间).toLocaleString('zh-CN')
     : '—';
   const alt = meta.海拔 != null ? `${meta.海拔} m` : '—';
+  const 安全文件名 = escapeAttr(meta.文件名);
+
+  const 图片HTML = 图片URL
+    ? `<div class="popup-photo-wrap">
+         <img src="${图片URL}" alt="${安全文件名}"
+              class="popup-photo-img"
+              data-photo-filename="${安全文件名}"
+              draggable="true"
+              title="拖拽到文件夹即可保存"
+              loading="lazy" />
+         <div class="popup-photo-tip">拖到文件夹保存</div>
+       </div>`
+    : `<div class="popup-photo-empty">
+         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5">
+           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+           <circle cx="8.5" cy="8.5" r="1.5"/>
+           <polyline points="21 15 16 10 5 21"/>
+         </svg>
+         <span>无缩略图（>20MB）</span>
+       </div>`;
 
   return `
-    <div style="min-width:200px;max-width:280px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif;padding:4px;">
-      <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px;" title="${meta.文件名}">
-        ${meta.文件名}
-      </div>
-      <div style="font-size:12px;color:#666;line-height:1.8;">
-        <div>📍 ${lat}, ${lng}</div>
-        <div>🕐 ${time}</div>
-        <div>⛰ ${alt}</div>
-        ${meta.设备型号 ? `<div>📱 ${meta.设备厂商 ?? ''} ${meta.设备型号}</div>` : ''}
-        ${meta.手动定位 ? '<div style="color:#7c4dff;font-weight:500;margin-top:4px;">✎ 手动定位</div>' : ''}
+    <div style="min-width:220px;max-width:300px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans SC',sans-serif;">
+      ${图片HTML}
+      <div style="padding:8px 12px 10px;">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px;" title="${安全文件名}">
+          ${meta.文件名}
+        </div>
+        <div style="font-size:11px;color:#666;line-height:1.8;">
+          <div>📍 ${lat}, ${lng}</div>
+          <div>🕐 ${time}</div>
+          <div>⛰ ${alt}</div>
+          ${meta.设备型号 ? `<div>📱 ${meta.设备厂商 ?? ''} ${meta.设备型号}</div>` : ''}
+          ${meta.手动定位 ? '<div style="color:#7c4dff;font-weight:500;margin-top:3px;">✎ 手动定位</div>' : ''}
+        </div>
       </div>
     </div>
   `;
@@ -73,13 +103,13 @@ export default function MapView({
   const locateClickHandlerRef = useRef(null);
   const 照片元数据Ref = useRef({});
 
-  // 通过委托监听 document 上的照片拖拽（导出到文件夹）
+  // 通过委托监听 document 上的 popup 图片拖拽（导出到文件夹）
   useEffect(() => {
     const handleDragStart = (e) => {
-      const el = e.target.closest('.photo-popup-image') || e.target.closest('.photo-popup-btn-drag');
+      const el = e.target.closest('.popup-photo-img') || e.target.closest('.photo-popup-image');
       if (!el) return;
 
-      const filename = el.getAttribute('data-photo-filename') || el.closest('[data-photo-filename]')?.getAttribute('data-photo-filename');
+      const filename = el.getAttribute('data-photo-filename');
       if (!filename) return;
 
       const meta = 照片元数据Ref.current[filename];
@@ -226,8 +256,8 @@ export default function MapView({
 
       const marker = L.marker([纬度, 经度], { icon });
 
-      // 绑定简单 popup（只显示信息）
-      marker.bindPopup(buildPopupContent(meta), {
+      // 绑定 popup（带照片缩略图，可拖拽保存）
+      marker.bindPopup(buildPopupContent(meta, popup图片URL), {
         className: 'photo-popup',
         maxWidth: 300,
         closeButton: true,
