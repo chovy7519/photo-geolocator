@@ -6,6 +6,7 @@ import StatusBar from './components/StatusBar';
 import SettingsDialog from './components/SettingsDialog';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import Lightbox from './components/Lightbox';
+import PhotoPopupCard from './components/PhotoPopupCard';
 import { batchExtractMeta } from './utils/exifReader';
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
   const [灯箱打开, 设置灯箱打开] = useState(false);
   const [灯箱索引, 设置灯箱索引] = useState(0);
   const [定位中照片, 设置定位中照片] = useState(null);
+  const [popup照片, 设置popup照片] = useState(null); // { photo, index, url }
   const fileInputRef = useRef(null);
 
   // 保存天地图 Key
@@ -101,6 +103,15 @@ export default function App() {
   const 打开灯箱 = useCallback((索引) => {
     设置灯箱索引(索引);
     设置灯箱打开(true);
+  }, []);
+
+  // marker 点击后显示浮动卡片
+  const 显示Popup卡片 = useCallback((photo, index, url) => {
+    设置popup照片({ photo, index, url });
+  }, []);
+
+  const 关闭Popup卡片 = useCallback(() => {
+    设置popup照片(null);
   }, []);
 
   // 清除数据
@@ -243,7 +254,19 @@ export default function App() {
             定位模式={定位中照片}
             设置坐标={设置手动坐标}
             取消定位={取消定位}
+            onPhotoSelect={显示Popup卡片}
           />
+
+          {/* 浮动照片卡片 */}
+          {popup照片 && (
+            <PhotoPopupCard
+              photo={popup照片.photo}
+              photoIndex={popup照片.index}
+              photoUrl={popup照片.url}
+              onClose={关闭Popup卡片}
+              onZoom={打开灯箱}
+            />
+          )}
         </div>
       </div>
 
