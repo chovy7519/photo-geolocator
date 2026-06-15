@@ -38,7 +38,10 @@ function buildPopupContent(meta, 图片URL) {
               title="点击放大 · 拖拽到文件夹即可保存"
               loading="lazy" />
          <div class="popup-photo-overlay">
-           <div class="popup-photo-icon" title="点击放大预览">
+           <div class="popup-photo-icon"
+                data-photo-action="zoom"
+                data-photo-filename="${安全文件名}"
+                title="点击放大预览">
              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                <circle cx="11" cy="11" r="8"/>
                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -46,7 +49,11 @@ function buildPopupContent(meta, 图片URL) {
                <line x1="8" y1="11" x2="14" y2="11"/>
              </svg>
            </div>
-           <div class="popup-photo-drag" title="拖拽到文件夹保存">
+           <div class="popup-photo-drag"
+                data-photo-action="drag"
+                data-photo-filename="${安全文件名}"
+                draggable="true"
+                title="拖拽到文件夹保存">
              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                <polyline points="7 10 12 15 17 10"/>
@@ -130,9 +137,24 @@ export default function MapView({
   const locateClickHandlerRef = useRef(null);
   const 照片元数据Ref = useRef({});
 
-  // 通过委托监听 document 上的 popup 图片点击（打开 Lightbox）
+  // 通过委托监听 document 上的 popup 点击（放大图标 + 图片 → 打开 Lightbox）
   useEffect(() => {
     const handlePopupImageClick = (e) => {
+      // 优先：放大图标点击
+      const zoomIcon = e.target.closest('[data-photo-action="zoom"]');
+      if (zoomIcon) {
+        const filename = zoomIcon.getAttribute('data-photo-filename');
+        if (filename) {
+          const 索引 = 全部照片列表.findIndex((p) => p.文件名 === filename);
+          if (索引 >= 0) {
+            e.stopPropagation();
+            打开灯箱(索引);
+            return;
+          }
+        }
+      }
+
+      // 兜底：图片本身点击
       const img = e.target.closest('.lightbox-popup-trigger');
       if (!img) return;
 
@@ -149,13 +171,14 @@ export default function MapView({
     return () => document.removeEventListener('click', handlePopupImageClick);
   }, [全部照片列表, 打开灯箱]);
 
-  // 通过委托监听 document 上的 popup 图片拖拽（下载到文件夹）
+  // 通过委托监听 document 上的 popup 拖拽（下载图标 + 图片 → 导出到文件夹）
   useEffect(() => {
     const handlePopupImageDragStart = (e) => {
-      const img = e.target.closest('.popup-photo-img');
-      if (!img) return;
+      // 优先：拖拽图标 / 图片本身
+      const el = e.target.closest('.popup-photo-drag') || e.target.closest('.popup-photo-img');
+      if (!el) return;
 
-      const filename = img.getAttribute('data-photo-filename');
+      const filename = el.getAttribute('data-photo-filename');
       if (!filename) return;
 
       const meta = 照片元数据Ref.current[filename];
@@ -168,9 +191,11 @@ export default function MapView({
         return;
       }
 
-      // 兜底：浏览器环境 → 设置 DownloadURL 数据（拖到桌面或浏览器会触发下载）
+      // 兜底：浏览器环境 → 设置 DownloadURL 数据
       try {
-        const src = img.getAttribute('src');
+        // 拖拽图标时，图片 src 从同级的 img 元素获取
+        const img = el.closest('.popup-photo-wrap')?.querySelector('.popup-photo-img');
+        const src = img?.getAttribute('src') || el.getAttribute('src');
         if (src) {
           e.dataTransfer.effectAllowed = 'copy';
           e.dataTransfer.setData('DownloadURL', `image/jpeg:${filename}:${src}`);
