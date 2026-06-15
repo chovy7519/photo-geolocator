@@ -20,7 +20,7 @@ function escapeAttr(str) {
  * - 照片可拖拽到文件夹（HTML5 native drag）
  * - 悬停时显示双提示图标（放大 + 下载）
  */
-function buildPopupContent(meta, 图片URL) {
+function buildPopupContent(meta, 图片URL, 索引) {
   const lat = meta.纬度?.toFixed(6) ?? '—';
   const lng = meta.经度?.toFixed(6) ?? '—';
   const time = meta.拍摄时间
@@ -32,15 +32,17 @@ function buildPopupContent(meta, 图片URL) {
 
   const 图片HTML = 图片URL
     ? `<div class="popup-photo-wrap">
-         <img src="${图片URL}" alt="" data-photo-filename="${安全文件名}"
+         <img src="${图片URL}" alt="" data-photo-filename="${安全文件名}" data-photo-index="${索引}"
               class="lightbox-popup-trigger popup-photo-img"
               draggable="true"
+              onclick="window.__gl_openLightbox && window.__gl_openLightbox(this.getAttribute('data-photo-index'))"
               title="点击放大 · 拖拽到文件夹即可保存"
               loading="lazy" />
          <div class="popup-photo-overlay">
            <div class="popup-photo-icon"
                 data-photo-action="zoom"
-                data-photo-filename="${安全文件名}"
+                data-photo-index="${索引}"
+                onclick="window.__gl_openLightbox && window.__gl_openLightbox(this.getAttribute('data-photo-index'))"
                 title="点击放大预览">
              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                <circle cx="11" cy="11" r="8"/>
@@ -137,42 +139,15 @@ export default function MapView({
   const locateClickHandlerRef = useRef(null);
   const 照片元数据Ref = useRef({});
 
-  // 在 popup 打开后，直接给 popup 内的 DOM 元素绑定点击事件
+  // 将 Lightbox 打开函数挂到 window 上，供 popup 内 onclick 直接调用
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    // 查找 popup 内指定元素并打开 Lightbox
-    const openLightboxForFilename = (filename) => {
-      if (!filename) return;
-      const 索引 = 全部照片列表.findIndex((p) => p.文件名 === filename);
-      if (索引 >= 0) 打开灯箱(索引);
-    };
-
-    // popup 打开时绑定事件
-    const handlePopupOpen = (e) => {
-      const popupNode = e.popup?.getElement();
-      if (!popupNode) return;
-
-      // 绑定放大图标
-      const zoomIcon = popupNode.querySelector('.popup-photo-icon');
-      if (zoomIcon) {
-        zoomIcon.addEventListener('click', () => {
-          openLightboxForFilename(zoomIcon.getAttribute('data-photo-filename'));
-        });
-      }
-
-      // 绑定图片本身
-      const photoImg = popupNode.querySelector('.lightbox-popup-trigger');
-      if (photoImg) {
-        photoImg.addEventListener('click', () => {
-          openLightboxForFilename(photoImg.getAttribute('data-photo-filename'));
-        });
+    window.__gl_openLightbox = (idx) => {
+      const n = parseInt(idx, 10);
+      if (!isNaN(n) && n >= 0 && n < 全部照片列表.length) {
+        打开灯箱(n);
       }
     };
-
-    map.on('popupopen', handlePopupOpen);
-    return () => map.off('popupopen', handlePopupOpen);
+    return () => { delete window.__gl_openLightbox; };
   }, [全部照片列表, 打开灯箱]);
 
   // 通过委托监听 document 上的 popup 拖拽（下载图标 + 图片 → 导出到文件夹）
@@ -309,6 +284,9 @@ export default function MapView({
       // 记录元数据（供拖拽使用）
       照片元数据Ref.current[meta.文件名] = meta;
 
+      // 计算该照片在全部照片列表中的索引（供 popup onclick 使用）
+      const 全局索引 = 全部照片列表.findIndex((p) => p.文件名 === meta.文件名);
+
       // 生成缩略图 blob URL（限制 5M，仅用于 marker 图标）
       let 缩略图URL = null;
       if (meta.file && meta.文件大小 <= 5 * 1024 * 1024) {
@@ -336,7 +314,7 @@ export default function MapView({
 
       const marker = L.marker([纬度, 经度], { icon });
 
-      marker.bindPopup(buildPopupContent(meta, popup图片URL), {
+      marker.bindPopup(buildPopupContent(meta, popup图片URL, 全局索引), {
         className: 'photo-popup',
         maxWidth: 340,
         closeButton: true,
